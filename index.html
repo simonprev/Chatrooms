@@ -1,0 +1,124 @@
+<html>
+<head>
+<script src='http://ajax.googleapis.com/ajax/libs/jquery/1.7/jquery.min.js'></script>
+<script src='json.js'></script>
+<script>
+$(document).ready(function(){
+  var SocketKlass = "MozWebSocket" in window ? MozWebSocket : WebSocket;
+  var ws = new SocketKlass('ws://localhost:8081/websocket');
+  var t;
+
+  ws.onmessage = function(evt) {
+    output = $.parseJSON(evt.data)
+    data = output.data
+    code = output.code
+    action = output.action
+    if(data){message=$.parseJSON(data.message)}
+    if(code == 200){
+      switch(action){
+        case "login":
+          login(data.user)
+          break;
+        case "logout":
+          logout();
+          break;
+        case "subscribe":
+          subscribe(data.subscriptions)
+          break;
+        case "publish":
+          publish(message)
+          break;
+        case "received":
+          receive(message)
+          break;
+      }
+    }else{
+      render_error(output)
+    }
+  }
+
+  render_error = function(error){
+    $("#error").html(error.message)
+    $("#error").slideDown()
+    clearTimeout(t);
+    t = setTimeout('removeError()',5000)
+  }
+
+  removeError = function(){
+   $("#error").slideUp("")
+  }
+
+  //METHODS ON SOCKET RECEIVE/*{{{*/
+  logout = function(user){
+    $("#login").show();
+    $("#account").find("p").remove()
+  }
+  login = function(user){
+    console.log(user)
+    $("#login").hide();
+    $("#account").prepend("<p>Now logged in as "+user.fullname+ " <a href='#' class='logout'>Logout</a></p>")
+  }
+
+  subscribe = function(subscriptions){
+    console.log(subscriptions[subscriptions.length-1])
+  }
+
+  publish = function(message){
+  }
+
+  receive = function(message){
+    var e = $( document.createElement('li') )
+    var span = $( document.createElement('span') )
+    room = ".room."+message.channel
+    e.html(message.content)
+    span.html(message.from + " says: ")
+    $(e).prepend(span)
+    $(room).append(e)
+  }/*}}}*/
+
+  //USER ACTIONS/*{{{*/
+  $('#login').submit(function(event) {
+    event.preventDefault();
+    var email = $('#email').val();
+    var password = $('#password').val();
+    var cmd = {"cmd":"login","params":{"email":email,"password":password}}
+    console.log(cmd)
+    ws.send(JSON.stringify(cmd));
+    var cmd = {"cmd":"subscribe","params":{"channel":"fun"}}
+    ws.send(JSON.stringify(cmd));
+  });
+
+  $(".logout").live("click",function(event){
+    event.preventDefault()
+    var cmd = {"cmd":"logout"}
+    ws.send(JSON.stringify(cmd));
+  })
+
+  $('.publish').submit(function(event) {
+    event.preventDefault();
+    var action = $(this).attr("data-action")
+    var msg = $('#msg').val();
+    var room = $(this).attr("data-room");
+    var cmd = {"cmd":action,"params":{"msg":msg,"channel":room}}
+    ws.send(JSON.stringify(cmd));
+  });/*}}}*/
+
+});
+</script>
+</head>
+<body>
+  <div id='error'></div>
+
+  <div id="account">
+    <form data-action="login" id="login">
+      <label>Email</label>
+      <input type="text" id="email" name="email" value="simon@mail.com"/>
+      <label>Password</label>
+      <input type="password" id="password" name="password" value="test"/>
+      <input type="submit" value="Login"/>
+    </form>
+  </div>
+  <div id="rooms"></div>
+
+</body>
+</html>
